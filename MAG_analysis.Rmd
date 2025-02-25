@@ -1,0 +1,143 @@
+```{r}
+library(readr)
+library(dplyr)
+###create a dictionary file
+#read in the files
+metaDict <- read_delim("/home/data/NGS_class_test_data/<diet_name>/assembly/assembly_info.txt")
+qualReport <- read_delim("/home/data/NGS_class_test_data/<diet_name>/mag_check/checkm2/quality_report.tsv")
+plasReport <- read_delim("/home/data/NGS_class_test_data/<diet_name>/viral_plasmid/consensus_summary/consensus_plasmid_summary.tsv")
+virReport <- read_delim("/home/data/NGS_class_test_data/<diet_name>/viral_plasmid/consensus_summary/consensus_virus_summary.tsv")
+tRNAFile <- read_delim("/home/data/NGS_class_test_data/<diet_name>/mag_check/rna/<diet_name>_trna_output",col_names=FALSE)
+rRNAFile <- read.delim("/home/data/NGS_class_test_data/<diet_name>/mag_check/rna/<diet_name>_rrna_output",header=FALSE)
+sourFile <- read_delim("/home/data/NGS_class_test_data/<diet_name>/taxonomic_profiling/tax/<diet_name>.k31.summarized.csv",delim = ",")
+
+#make the files compatible
+colnames(metaDict)[1] <- "Name"
+colnames(plasReport)[1] <- "Name"
+colnames(virReport)[1] <- "Name"
+colnames(tRNAFile)[1] <- "Name"
+colnames(rRNAFile)[1] <- "Name"
+colnames(sourFile)[1] <- "Name"
+
+#clean the data
+metaDict <- select(metaDict,one_of("Name","length","cov.","circ."))
+qualReport <- select(qualReport,one_of("Name","Completeness","Contamination","Contig_N50","circ."))
+plasReport <- select(plasReport,one_of("Name","plasmid_score"))
+virReport <- select(virReport,one_of("Name","virus_score","taxonomy"))
+virReport$Name <- gsub("\\|.*","",virReport$Name)
+tRNAFile$Name <- gsub(" ","",tRNAFile$Name)
+tRNAFile <- tRNAFile[4:nrow(tRNAFile),]
+colnames(tRNAFile)[5] <- "tRNA_type"
+rRNAFile <- rRNAFile[2:nrow(rRNAFile),]
+sourFile <- select(sourFile,one_of("Name","rank","fraction","lineage"))
+sourFile$Name <- gsub("/home/data/NGS_class_test_data/<diet_name>/all_contigs/","",sourFile$Name)
+sourFile$Name <- gsub("\\..*","",sourFile$Name)
+
+#define the taxonomy of plasmid and virus files
+plasReport$taxonomy <- paste("Plasmid","Plasmid","Plasmid","Plasmid","Plasmid","Plasmid","Plasmid",sep=";")
+plasReport <- separate(plasReport,
+                   col = "taxonomy",
+                   into = c("Superkingdom","Clade","Kingdom","Phylum","Class","Order","Family"),
+                   sep = ";")
+virReport <- separate(virReport,
+                   col = "taxonomy",
+                   into = c("Superkingdom","Clade","Kingdom","Phylum","Class","Order","Family"),
+                   sep = ";")
+plasVirReport <- bind_rows(plasReport,virReport)
+
+#prepare the RNA files
+tRNAFile2 <- c()
+for (tr in levels(as.factor(tRNAFile$Name))) {
+  subbedtrna <- subset(tRNAFile,Name==tr)
+  trnaFile <- data.frame(Name=tr,
+                          num_trna=length(levels(as.factor(subbedtrna$tRNA_type))),
+                          list_of_trnas=toString(levels(as.factor(subbedtrna$tRNA_type))))
+  tRNAFile2 <- rbind(tRNAFile2,trnaFile)
+}
+
+rRNAFile2 <- c()
+for (rr in levels(as.factor(rRNAFile$Name))) {
+  subbedrrna <- subset(rRNAFile,Name==rr)
+  rrna_file <- data.frame(
+    Name=rr,
+    rRNA_5S=TRUE %in% str_detect(subbedrrna$V9,"5S"),
+    rRNA_16S=TRUE %in% str_detect(subbedrrna$V9,"16S"),
+    rRNA_23S=TRUE %in% str_detect(subbedrrna$V9,"23S"))
+  rRNAFile2 <- rbind(rRNAFile2,rrna_file)
+}
+
+#sort taxonomic information
+sourFileClean <- subset(sourFile,rank=="species")
+sourFileClean <- separate(sourFileClean,
+                   col = "lineage",
+                   into = c("Superkingdom","Phylum","Class","Order","Family","Genus","Species"),
+                   sep = ";")
+sourFileRanked <- c()
+for (tax in levels(as.factor(sourFileClean$Name))) {
+  taxFile <- subset(sourFileClean,Name==tax)
+  taxFile2 <- subset(taxFile,fraction==max(taxFile$fraction))
+  sourFileRanked <- rbind(sourFileRanked,taxFile2)
+}
+sourFileRanked <- select(sourFileRanked,one_of("Name","Superkingdom","Phylum","Class","Order","Family","Genus","Species"))
+
+#add info to the dictionary file
+metaDict <- right_join(metaDict,qualReport, join_by(Name))
+metaDict <- left_join(metaDict,plasVirReport, join_by(Name))
+metaDict <- left_join(metaDict,tRNAFile2, join_by(Name))
+metaDict <- left_join(metaDict,rRNAFile2, join_by(Name))
+metaDict <- left_join(metaDict,sourFileRanked, join_by(Name))
+
+#write the information to a spreadsheet
+setwd("/home/data/NGS_class_test_data/<diet_name>/final_files")
+write_csv(metaDict,"<diet_name>_metagenomic_results.csv")
+```
+
+```{r}
+#create the statistics file
+#Check its existence
+if (file.exists("/home/data/NGS_class_test_data/<diet_name>/final_files/<diet_name>QualityInfo.txt")) {
+  #Delete file if it exists
+  file.remove("/home/data/NGS_class_test_data/<diet_name>/final_files/<diet_name>QualityInfo.txt")
+}
+setwd("/home/data/NGS_class_test_data/<diet_name>/final_files")
+
+high_cir <- subset(metaDict,Completeness > 90 & Contamination < 5 & circ. == "y")
+#good practice to limit to large genomes (>1 Mbp) as the high quality,circular
+high_ncir <- subset(metaDict,Completeness > 90 & Contamination < 5 & circ. == "n")
+medium <- subset(subset(metaDict,Completeness < 90 | Contamination > 5),Completeness > 50 & Contamination < 10)
+low <- subset(metaDict,Completeness < 50 | Contamination > 10)
+
+#begin creating an output file
+sink(file=paste0("<diet_name>QualityInfo.txt"),append=TRUE)
+
+cat("Number of total MAGs: ",nrow(metaDict),"\n")
+cat("Number of high quality, circular MAGs: ",nrow(high_cir),"\n")
+cat("Number of high quality, noncircular MAGs: ",nrow(high_ncir),"\n")
+cat("Number of medium quality MAGs: ",nrow(medium),"\n")
+cat("Number of low quality MAGs: ",nrow(low),"\n")
+cat("Number of RNA-complete high quality, noncircular MAGs: ",nrow(subset(high_ncir,rRNA_5S==TRUE&rRNA_16S==TRUE&rRNA_23S==TRUE&num_trna>18)),"\n")
+cat("Number of RNA-complete medium quality MAGs: ",nrow(subset(medium,rRNA_5S==TRUE&rRNA_16S==TRUE&rRNA_23S==TRUE&num_trna>18)),"\n")
+cat("Number of RNA-complete low quality MAGs: ",nrow(subset(low,rRNA_5S==TRUE&rRNA_16S==TRUE&rRNA_23S==TRUE&num_trna>18)),"\n")
+
+#end the file
+sink(NULL)
+
+```
+
+```{r}
+library(ggplot2)
+#make a simple piechart with ggplot2
+piechart <- ggplot(metaDict, aes(x="",y=cov.,fill=Phylum,color=Phylum)) +
+  geom_bar(
+    width=1,
+    stat="identity",
+   position="fill") +
+  coord_polar("y",start=0) +
+  theme_void() +
+  guides(fill=guide_legend(title="Phylum"))
+
+piechart
+```
+
+
+

@@ -1,0 +1,177 @@
+```{bash}
+#!/bin/bash
+
+#enable the use of our program package manager (conda)
+source /home/data/.miniforge3/etc/profile.d/conda.sh
+eval "$(conda shell.bash hook)"
+
+###assembly of the fecal microbiome metagenome
+
+#location of reads: /home/data/reads/<diet_name>
+#move to the <diet_name> directory (folder)
+cd /home/data/NGS_class_data/<diet_name>
+
+#unzip reads
+gzip -d *.fastq.gz
+
+#concatenate all reads into a single fastq file
+cat *.fastq > <diet_name>.fastq
+
+###organize the directory
+#create directories for the subfolders that we'll be using
+mkdir /home/data/NGS_class_data/<diet_name>/{reads,quality_filtering,decontamination,assembly,polished_assembly,all_contigs,mag_check,binning,taxonomic_profiling,final_files}
+
+###see that you created these subfolders
+ls -lh
+
+#move all the reads and concatenated file to the "reads" folder
+mv /home/data/NGS_class_data/<diet_name>/*.fastq /home/data/NGS_class_data/<diet_name>/reads
+
+###perform quality filtering with the fastplong program
+#activate the conda environment
+conda activate fastplong
+
+#run fastplong
+fastplong --in reads/<diet_name>.fastq --out quality_filtering/<diet_name>_filtered.fastq \
+--failed_out quality_filtering/<diet_name>_failed_out --length_required 50 --thread 16 --qualified_quality_phred 10 \
+--html quality_filtering/<diet_name>_filter_report.html --json quality_filtering/<diet_name>_filter_report.json
+#default PHRED score threshold is 15 (~95% basecall accuracy)
+#failed_out will store failed reads and identify the failure reason
+#length_required will set a minimum threshold for reads to 500 bp (anything shorter is discarded)
+#thread count is how many cpus will we allow to be used (enabled parallel processing and speeding up workflows)
+
+cp quality_filtering/<diet_name>_filter_report.html final_files
+
+#deactivate the program
+conda deactivate
+
+###remove contaminating human sequences
+conda activate samtools
+
+#align reads to human reference
+/home/data/.modules/minimap2/minimap2 -a -x \
+map-ont /home/data/databases/human/hg19_main_mask_ribo_animal_allplant_allfungus.fa.gz \
+quality_filtering/<diet_name>_filtered.fastq -o decontamination/<diet_name>_mapped.sam
+#the hg19 fastq here is a human reference assembly 
+
+#compress the file putting into the bam format
+samtools view -bh decontamination/<diet_name>_mapped.sam \
+-o decontamination/<diet_name>_mapped.bam --threads 40
+
+#sort the bam file
+samtools sort decontamination/<diet_name>_mapped.bam \
+-o decontamination/<diet_name>_sorted.bam --threads 40
+
+#save the host sequences to a file
+#-F exclude certain sequences, -f include certain sequences
+samtools fastq -F 4 decontamination/<diet_name>_sorted.bam > decontamination/<diet_name>_host.fastq
+
+#compress the host fastq
+gzip -c decontamination/<diet_name>_host.fastq > decontamination/<diet_name>_host.fastq.gz
+
+#save the non-host sequences
+samtools fastq -f 4 decontamination/<diet_name>_sorted.bam > decontamination/<diet_name>_decon.fastq
+
+conda deactivate
+
+###assemble the filtered reads de novo with metaflye
+conda activate flye
+
+flye --nano-raw decontamination/<diet_name>_decon.fastq \
+--out-dir assembly --meta --threads 40 
+
+conda deactivate
+
+###polish the assembly with Nanopore's medaka program
+conda activate medaka
+
+medaka_consensus -i reads/<diet_name>.fastq -d assembly/assembly.fasta \
+-o polished_assembly -t 40
+
+cp polished_assembly/consensus.fasta final_files
+
+conda deactivate
+
+###check the polished assembly
+/home/data/.modules/quast-5.3.0/metaquast.py polished_assembly/consensus.fasta \
+-o polished_assembly/<diet_name>_postpolish_quast --threads 40 \
+--nanopore decontamination/<diet_name>_decon.fastq
+
+###file organizing
+##separate contigs into separate files
+#go into the contigs folder
+cd /home/data/NGS_class_data/<diet_name>/all_contigs
+#separate each contig by the ">" and name that file
+
+perl -ne 'if (/^>(\S+)/) { close OUT; open OUT, ">$1.fasta" } print OUT' ../polished_assembly/consensus.fasta
+
+cd /home/data/NGS_class_data/<diet_name>
+
+###bin together contigs to create higher quality MAGs
+###we are skipping this for the workshop, a brief script in the binning.Rmd is included to test
+
+###profile the MAGs for RNAs
+mkdir mag_check/rna
+
+#tRNA profiling
+/home/data/.modules/trnascan/bin/tRNAscan-SE -B --thread 40 \
+-o mag_check/rna/<diet_name>_trna_output -m mag_check/rna/<diet_name>_trna_stats all_contigs/*.fasta
+
+#rRNA profiling
+conda activate barrnap
+
+barrnap --threads 40 --kingdom "bac" polished_assembly/consensus.fasta > mag_check/rna/<diet_name>_rrna_output
+
+conda deactivate
+
+###check the quality of the metagenome-assembled genomes (MAGs)
+conda activate checkm2
+
+checkm2 predict --threads 40 \
+--input all_contigs --output-directory mag_check/checkm2 \
+--tmpdir /home/data/temp -x .fasta --force
+
+conda deactivate
+
+###assign taxonomy to the MAGs using the sourmash program
+conda activate smash
+
+#create some subdirectories
+mkdir taxonomic_profiling/{gather31,tax}
+
+#create "signatures" for the MAGs, these are essentially indexing the MAGs
+echo name,genome_filename,protein_filename > /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/manysketch.csv
+
+for contig in /home/data/NGS_class_data/<diet_name>/all_contigs/*.fasta
+do echo $contig,$contig,
+done >> /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/manysketch.csv
+
+sourmash scripts manysketch /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/manysketch.csv \
+-o /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/sig.zip -p dna,k=31,scaled=1000
+
+#profile the taxonomy of MAGs using the NCBI nr database, finding the closest genome to each signature
+cd /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/gather31
+sourmash scripts fastmultigather ../sig.zip \
+/home/data/databases/smash/genbank-2022.03-bacteria-k31.zip \
+--output <diet_name>_gather.csv --ksize 31 --cores 80
+
+#assign taxonomy
+cd /home/data/NGS_class_data/<diet_name>
+#use system for the 31 kmer (it's recommended to also look at the 51-mer), we will just use 31 for this class
+sourmash tax metagenome -g taxonomic_profiling/gather31/<diet_name>_gather.csv -t \
+/home/data/databases/smash/genbank-2022.03-bacteria.lineages.csv.gz \
+-o taxonomic_profiling/tax/<diet_name>.k31 --output-format krona csv_summary --rank species
+
+conda deactivate
+
+#profile viral and plasmid MAGs
+conda activate genomad
+
+genomad end-to-end --cleanup \
+/home/data/NGS_class_data/<diet_name>/polished_assembly/consensus.fasta \
+/home/data/NGS_class_data/<diet_name>/viral_plasmid \
+/home/data/databases/genomad/genomad_db
+
+conda deactivate
+```
+

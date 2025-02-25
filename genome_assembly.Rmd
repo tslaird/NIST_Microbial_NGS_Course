@@ -1,0 +1,76 @@
+```{bash}
+#!/bin/bash
+
+#enable the use of our program package manager (conda)
+source /home/data/.miniforge3/etc/profile.d/conda.sh
+eval "$(conda shell.bash hook)"
+
+###assembly of the Deinococcus radiodurans or Staphylococcus pasteuri genome
+
+#location of reads: /home/data/<organism_name>
+#move to the directory (folder)
+cd /home/data/NGS_class_data/<organism_name>
+
+#unzip reads
+gzip -d *.fastq.gz
+
+#concatenate all reads into a single fastq file
+cat *.fastq > <organism_name>.fastq
+
+###organize the directory
+#create directories for the subfolders that we'll be using
+mkdir /home/data/NGS_class_data/<organism_name>/{reads,quality_filtering,assembly,polished_assembly,annotations,msa}
+#move all the reads and concatenated file to the "reads" folder
+mv /home/data/NGS_class_data/<organism_name>/*.fastq /home/data/NGS_class_data/<organism_name>/reads
+
+###perform quality filtering with the fastplong program
+#activate the conda environment
+conda activate fastplong
+
+#run fastplong
+fastplong --in reads/<organism_name>.fastq --out quality_filtering/<organism_name>_filtered.fastq \
+--failed_out quality_filtering/<organism_name>_failed_out \
+--qualified_quality_phred 10 --length_required 500 --thread 16 \
+--html quality_filtering/<organism_name>_filter_report.html --json quality_filtering/<organism_name>_filter_report.json
+#default Phred score threshold is 15 (~95% basecall accuracy), set to 10 (90% accuracy)
+#failed_out will store failed reads and identify the failure reason
+#length_required will set a minimum threshold for reads to 500 bp (anything shorter is discarded)
+#thread count is how many cpus will we allow to be used (enabled parallel processing and speeding up workflows)
+
+#deactivate the program
+conda deactivate
+
+###assemble the filtered reads de novo with flye
+conda activate flye
+
+flye --nano-raw quality_filtering/<organism_name>_filtered.fastq \
+--out-dir assembly --genome-size <genome_size>m --threads 40 --asm-coverage 50
+
+conda deactivate
+
+###polish the assembly with Nanopore's medaka program
+conda activate medaka
+
+medaka_consensus -i reads/<organism_name>.fastq -d assembly/assembly.fasta \
+-o polished_assembly -t 40 --bacteria
+
+conda deactivate
+
+###check the polished assembly
+/home/data/.modules/quast-5.3.0/quast.py polished_assembly/consensus.fasta \
+-r reference/<organism_name>_ref.fasta.gz -o polished_assembly/<organism_name>_quast \
+--threads 40 --nanopore quality_filtering/<organism_name>_filtered.fastq
+
+###annotate the assembled genomes with prokka
+conda activate prokka
+
+prokka --outdir annotations --proteins reference/genomic.gbff \
+--prefix <organism_name> polished_assembly/consensus.fasta --force
+#proteins will use nomenclature from the genbank reference genome
+
+conda deactivate
+
+
+#our final genbank sequences: /home/data/NGS_class_data/<organism_name>/annotations/<organism_name>.gbk
+```
+
