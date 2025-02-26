@@ -4,32 +4,32 @@ conda activate samtools
 
 #map reads to assembly to get general coverage information
 /home/data/.modules/minimap2/minimap2 -a -x map-ont --secondary=no -t 100 \
-/home/data/NGS_class_test_data/<diet_name>/polished_assembly/consensus.fasta \
-/home/data/NGS_class_test_data/<diet_name>/decontamination/<diet_name>_decon.fastq > \
-/home/data/NGS_class_test_data/<diet_name>/binning/alignment.sam
+/home/data/partner<A or B>/<diet_name>/polished_assembly/consensus.fasta \
+/home/data/partner<A or B>/<diet_name>/decontamination/<diet_name>_decon.fastq > \
+/home/data/partner<A or B>/<diet_name>/binning/alignment.sam
 
 #convert sam to bam
-samtools view -m 20G -@ 60 -bShu /home/data/NGS_class_test_data/<diet_name>/binning/alignment.sam \
--o /home/data/NGS_class_test_data/<diet_name>/binning/alignment.bam
+samtools view -m 20G -@ 60 -bShu /home/data/partner<A or B>/<diet_name>/binning/alignment.sam \
+-o /home/data/partner<A or B>/<diet_name>/binning/alignment.bam
 
 #sort the bam file
-samtools sort -m 20G -@ 60 /home/data/NGS_class_test_data/<diet_name>/binning/alignment.bam \
--o /home/data/NGS_class_test_data/<diet_name>/binning/alignment_sorted.bam
+samtools sort -m 20G -@ 60 /home/data/partner<A or B>/<diet_name>/binning/alignment.bam \
+-o /home/data/partner<A or B>/<diet_name>/binning/alignment_sorted.bam
 
 #create an index of the bam file
-samtools index -m 20G -@ 60 /home/data/NGS_class_test_data/<diet_name>/binning/alignment_sorted.bam \
--o /home/data/NGS_class_test_data/<diet_name>/binning/alignment_sorted.bam.bai
+samtools index -m 20G -@ 60 /home/data/partner<A or B>/<diet_name>/binning/alignment_sorted.bam \
+-o /home/data/partner<A or B>/<diet_name>/binning/alignment_sorted.bam.bai
 
 conda deactivate
 
 #generate a coverage/depth file
 /home/data/.modules/metabat/bin/jgi_summarize_bam_contig_depths \
---outputDepth /home/data/NGS_class_test_data/<diet_name>/binning/depth.txt \
-/home/data/NGS_class_test_data/<diet_name>/binning/alignment_sorted.bam
+--outputDepth /home/data/partner<A or B>/<diet_name>/binning/depth.txt \
+/home/data/partner<A or B>/<diet_name>/binning/alignment_sorted.bam
 
 #run the binner (metabat2)
 /home/data/.modules/metabat/bin/metabat2 \
--i /home/data/NGS_class_test_data/<diet_name>/polished_assembly/consensus.fasta \
--a /home/data/NGS_class_test_data/<diet_name>/binning/depth.txt \
--o /home/data/NGS_class_test_data/<diet_name>/binning/bins/bin -m 1500 -t 80
+-i /home/data/partner<A or B>/<diet_name>/polished_assembly/consensus.fasta \
+-a /home/data/partner<A or B>/<diet_name>/binning/depth.txt \
+-o /home/data/partner<A or B>/<diet_name>/binning/bins/bin -m 1500 -t 80
 ```

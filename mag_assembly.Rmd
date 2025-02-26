@@ -9,7 +9,7 @@ eval "$(conda shell.bash hook)"
 
 #location of reads: /home/data/reads/<diet_name>
 #move to the <diet_name> directory (folder)
-cd /home/data/NGS_class_data/<diet_name>
+cd /home/data/partner<A or B>/<diet_name>
 
 #unzip reads
 gzip -d *.fastq.gz
@@ -19,13 +19,13 @@ cat *.fastq > <diet_name>.fastq
 
 ###organize the directory
 #create directories for the subfolders that we'll be using
-mkdir /home/data/NGS_class_data/<diet_name>/{reads,quality_filtering,decontamination,assembly,polished_assembly,all_contigs,mag_check,binning,taxonomic_profiling,final_files}
+mkdir /home/data/partner<A or B>/<diet_name>/{reads,quality_filtering,decontamination,assembly,polished_assembly,all_contigs,mag_check,binning,taxonomic_profiling,final_files}
 
 ###see that you created these subfolders
 ls -lh
 
 #move all the reads and concatenated file to the "reads" folder
-mv /home/data/NGS_class_data/<diet_name>/*.fastq /home/data/NGS_class_data/<diet_name>/reads
+mv /home/data/partner<A or B>/<diet_name>/*.fastq /home/data/partner<A or B>/<diet_name>/reads
 
 ###perform quality filtering with the fastplong program
 #activate the conda environment
@@ -100,12 +100,12 @@ conda deactivate
 ###file organizing
 ##separate contigs into separate files
 #go into the contigs folder
-cd /home/data/NGS_class_data/<diet_name>/all_contigs
+cd /home/data/partner<A or B>/<diet_name>/all_contigs
 #separate each contig by the ">" and name that file
 
 perl -ne 'if (/^>(\S+)/) { close OUT; open OUT, ">$1.fasta" } print OUT' ../polished_assembly/consensus.fasta
 
-cd /home/data/NGS_class_data/<diet_name>
+cd /home/data/partner<A or B>/<diet_name>
 
 ###bin together contigs to create higher quality MAGs
 ###we are skipping this for the workshop, a brief script in the binning.Rmd is included to test
@@ -140,23 +140,23 @@ conda activate smash
 mkdir taxonomic_profiling/{gather31,tax}
 
 #create "signatures" for the MAGs, these are essentially indexing the MAGs
-echo name,genome_filename,protein_filename > /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/manysketch.csv
+echo name,genome_filename,protein_filename > /home/data/partner<A or B>/<diet_name>/taxonomic_profiling/manysketch.csv
 
-for contig in /home/data/NGS_class_data/<diet_name>/all_contigs/*.fasta
+for contig in /home/data/partner<A or B>/<diet_name>/all_contigs/*.fasta
 do echo $contig,$contig,
-done >> /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/manysketch.csv
+done >> /home/data/partner<A or B>/<diet_name>/taxonomic_profiling/manysketch.csv
 
-sourmash scripts manysketch /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/manysketch.csv \
--o /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/sig.zip -p dna,k=31,scaled=1000
+sourmash scripts manysketch /home/data/partner<A or B>/<diet_name>/taxonomic_profiling/manysketch.csv \
+-o /home/data/partner<A or B>/<diet_name>/taxonomic_profiling/sig.zip -p dna,k=31,scaled=1000
 
 #profile the taxonomy of MAGs using the NCBI nr database, finding the closest genome to each signature
-cd /home/data/NGS_class_data/<diet_name>/taxonomic_profiling/gather31
+cd /home/data/partner<A or B>/<diet_name>/taxonomic_profiling/gather31
 sourmash scripts fastmultigather ../sig.zip \
 /home/data/databases/smash/genbank-2022.03-bacteria-k31.zip \
 --output <diet_name>_gather.csv --ksize 31 --cores 80
 
 #assign taxonomy
-cd /home/data/NGS_class_data/<diet_name>
+cd /home/data/partner<A or B>/<diet_name>
 #use system for the 31 kmer (it's recommended to also look at the 51-mer), we will just use 31 for this class
 sourmash tax metagenome -g taxonomic_profiling/gather31/<diet_name>_gather.csv -t \
 /home/data/databases/smash/genbank-2022.03-bacteria.lineages.csv.gz \
@@ -168,8 +168,8 @@ conda deactivate
 conda activate genomad
 
 genomad end-to-end --cleanup \
-/home/data/NGS_class_data/<diet_name>/polished_assembly/consensus.fasta \
-/home/data/NGS_class_data/<diet_name>/viral_plasmid \
+/home/data/partner<A or B>/<diet_name>/polished_assembly/consensus.fasta \
+/home/data/partner<A or B>/<diet_name>/viral_plasmid \
 /home/data/databases/genomad/genomad_db
 
 conda deactivate

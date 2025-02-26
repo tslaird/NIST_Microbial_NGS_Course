@@ -3,13 +3,13 @@ library(readr)
 library(dplyr)
 ###create a dictionary file
 #read in the files
-metaDict <- read_delim("/home/data/NGS_class_test_data/<diet_name>/assembly/assembly_info.txt")
-qualReport <- read_delim("/home/data/NGS_class_test_data/<diet_name>/mag_check/checkm2/quality_report.tsv")
-plasReport <- read_delim("/home/data/NGS_class_test_data/<diet_name>/viral_plasmid/consensus_summary/consensus_plasmid_summary.tsv")
-virReport <- read_delim("/home/data/NGS_class_test_data/<diet_name>/viral_plasmid/consensus_summary/consensus_virus_summary.tsv")
-tRNAFile <- read_delim("/home/data/NGS_class_test_data/<diet_name>/mag_check/rna/<diet_name>_trna_output",col_names=FALSE)
-rRNAFile <- read.delim("/home/data/NGS_class_test_data/<diet_name>/mag_check/rna/<diet_name>_rrna_output",header=FALSE)
-sourFile <- read_delim("/home/data/NGS_class_test_data/<diet_name>/taxonomic_profiling/tax/<diet_name>.k31.summarized.csv",delim = ",")
+metaDict <- read_delim("/home/data/partner<A or B>/<diet_name>/assembly/assembly_info.txt")
+qualReport <- read_delim("/home/data/partner<A or B>/<diet_name>/mag_check/checkm2/quality_report.tsv")
+plasReport <- read_delim("/home/data/partner<A or B>/<diet_name>/viral_plasmid/consensus_summary/consensus_plasmid_summary.tsv")
+virReport <- read_delim("/home/data/partner<A or B>/<diet_name>/viral_plasmid/consensus_summary/consensus_virus_summary.tsv")
+tRNAFile <- read_delim("/home/data/partner<A or B>/<diet_name>/mag_check/rna/<diet_name>_trna_output",col_names=FALSE)
+rRNAFile <- read.delim("/home/data/partner<A or B>/<diet_name>/mag_check/rna/<diet_name>_rrna_output",header=FALSE)
+sourFile <- read_delim("/home/data/partner<A or B>/<diet_name>/taxonomic_profiling/tax/<diet_name>.k31.summarized.csv",delim = ",")
 
 #make the files compatible
 colnames(metaDict)[1] <- "Name"
@@ -30,7 +30,7 @@ tRNAFile <- tRNAFile[4:nrow(tRNAFile),]
 colnames(tRNAFile)[5] <- "tRNA_type"
 rRNAFile <- rRNAFile[2:nrow(rRNAFile),]
 sourFile <- select(sourFile,one_of("Name","rank","fraction","lineage"))
-sourFile$Name <- gsub("/home/data/NGS_class_test_data/<diet_name>/all_contigs/","",sourFile$Name)
+sourFile$Name <- gsub("/home/data/partner<A or B>/<diet_name>/all_contigs/","",sourFile$Name)
 sourFile$Name <- gsub("\\..*","",sourFile$Name)
 
 #define the taxonomy of plasmid and virus files
@@ -88,18 +88,18 @@ metaDict <- left_join(metaDict,rRNAFile2, join_by(Name))
 metaDict <- left_join(metaDict,sourFileRanked, join_by(Name))
 
 #write the information to a spreadsheet
-setwd("/home/data/NGS_class_test_data/<diet_name>/final_files")
+setwd("/home/data/partner<A or B>/<diet_name>/final_files")
 write_csv(metaDict,"<diet_name>_metagenomic_results.csv")
 ```
 
 ```{r}
 #create the statistics file
 #Check its existence
-if (file.exists("/home/data/NGS_class_test_data/<diet_name>/final_files/<diet_name>QualityInfo.txt")) {
+if (file.exists("/home/data/partner<A or B>/<diet_name>/final_files/<diet_name>QualityInfo.txt")) {
   #Delete file if it exists
-  file.remove("/home/data/NGS_class_test_data/<diet_name>/final_files/<diet_name>QualityInfo.txt")
+  file.remove("/home/data/partner<A or B>/<diet_name>/final_files/<diet_name>QualityInfo.txt")
 }
-setwd("/home/data/NGS_class_test_data/<diet_name>/final_files")
+setwd("/home/data/partner<A or B>/<diet_name>/final_files")
 
 high_cir <- subset(metaDict,Completeness > 90 & Contamination < 5 & circ. == "y")
 #good practice to limit to large genomes (>1 Mbp) as the high quality,circular

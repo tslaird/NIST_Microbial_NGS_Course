@@ -5,11 +5,13 @@
 source /home/data/.miniforge3/etc/profile.d/conda.sh
 eval "$(conda shell.bash hook)"
 
+#move your reads from the barcode directory to the named directory
+
 ###assembly of the Deinococcus radiodurans or Staphylococcus pasteuri genome
 
 #location of reads: /home/data/<organism_name>
 #move to the directory (folder)
-cd /home/data/NGS_class_data/<organism_name>
+cd /home/data/partner<A or B>/<organism_name>
 
 #unzip reads
 gzip -d *.fastq.gz
@@ -19,9 +21,9 @@ cat *.fastq > <organism_name>.fastq
 
 ###organize the directory
 #create directories for the subfolders that we'll be using
-mkdir /home/data/NGS_class_data/<organism_name>/{reads,quality_filtering,assembly,polished_assembly,annotations,msa}
+mkdir /home/data/partner<A or B>/<organism_name>/{reads,quality_filtering,assembly,polished_assembly,annotations,msa}
 #move all the reads and concatenated file to the "reads" folder
-mv /home/data/NGS_class_data/<organism_name>/*.fastq /home/data/NGS_class_data/<organism_name>/reads
+mv /home/data/partner<A or B>/<organism_name>/*.fastq /home/data/partner<A or B>/<organism_name>/reads
 
 ###perform quality filtering with the fastplong program
 #activate the conda environment
@@ -71,6 +73,6 @@ prokka --outdir annotations --proteins reference/genomic.gbff \
 conda deactivate
 
 
-#our final genbank sequences: /home/data/NGS_class_data/<organism_name>/annotations/<organism_name>.gbk
+#our final genbank sequences: /home/data/partner<A or B>/<organism_name>/annotations/<organism_name>.gbk
 ```
 
