@@ -17,5 +17,7 @@ https://hackmd.io/@tslaird/H10t1SbYyx
 The following markdown files contain instructions for performing genome binning and assembly from the (meta)genomic data you have obtained.
 
 binning.Rmd
+
 genome_assembly.Rmd
+
 MAG_analysis.Rmd
